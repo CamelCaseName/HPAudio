@@ -17,7 +17,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
+    <OutputPath>G:\SteamLibrary\steamapps\common\House Party\Mods\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -25,7 +25,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
+    <OutputPath>G:\SteamLibrary\steamapps\common\House Party\Mods\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -33,9 +33,23 @@
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
       <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\Il2Cppmscorlib.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Il2CppSystem">
+      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\Il2CppSystem.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Il2CppSystem.Net.Http">
+      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\Il2CppSystem.Net.Http.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="MelonLoader">
       <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\MelonLoader.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -47,20 +61,63 @@
     <Reference Include="System.Xml" />
     <Reference Include="UnhollowerBaseLib">
       <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\UnhollowerBaseLib.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnhollowerRuntimeLib">
       <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\UnhollowerRuntimeLib.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Unity.InputSystem, Version=1.3.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\Unity.InputSystem.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine">
       <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\UnityEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\UnityEngine.AudioModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AudioMod.cs" />
+    <Compile Include="NLayer\Decoder\BitReservoir.cs" />
+    <Compile Include="NLayer\Decoder\FrameBase.cs" />
+    <Compile Include="NLayer\Decoder\Huffman.cs" />
+    <Compile Include="NLayer\Decoder\ID3Frame.cs" />
+    <Compile Include="NLayer\Decoder\LayerDecoderBase.cs" />
+    <Compile Include="NLayer\Decoder\LayerIDecoder.cs" />
+    <Compile Include="NLayer\Decoder\LayerIIDecoder.cs" />
+    <Compile Include="NLayer\Decoder\LayerIIDecoderBase.cs" />
+    <Compile Include="NLayer\Decoder\LayerIIIDecoder.cs" />
+    <Compile Include="NLayer\Decoder\MpegFrame.cs" />
+    <Compile Include="NLayer\Decoder\MpegStreamReader.cs" />
+    <Compile Include="NLayer\Decoder\RiffHeaderFrame.cs" />
+    <Compile Include="NLayer\Decoder\VBRInfo.cs" />
+    <Compile Include="NLayer\Enums.cs" />
+    <Compile Include="NLayer\IMpegFrame.cs" />
+    <Compile Include="NLayer\MpegFile.cs" />
+    <Compile Include="NLayer\MpegFrameDecoder.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="NLayer\LICENSE" />
+    <None Include="NLayer\NLayer.csproj" />
+    <None Include="NLayer\README.md" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
