@@ -20,7 +20,6 @@ namespace HPAudio
         private int currentSong = 0;
         public bool CurrentlyPlaying = false;
         private bool gotSpeakers = false;
-        private float volume = 0.5f;
         private string currentSongName = "None";
 
         public override void OnApplicationStart()
@@ -162,7 +161,7 @@ namespace HPAudio
 #if DEBUG
             MelonLogger.Msg(e.ToString());
 #endif
-            MelonLogger.Msg($"'{currentSongName}' can't be loaded!");
+            MelonLogger.Msg($"'{currentSongName}' can't be loaded! (You can retry, give it some time and it might just work again)");
             CurrentlyPlaying = false;
         }
 
@@ -195,6 +194,7 @@ namespace HPAudio
             }
             catch (System.Runtime.CompilerServices.RuntimeWrappedException re)
             {
+#if DEBUG
                 if (re.WrappedException != null)
                 {
                     MelonLogger.Msg(re.WrappedException);
@@ -203,6 +203,7 @@ namespace HPAudio
                     MelonLogger.Msg(((Il2CppSystem.ArgumentException)re.WrappedException).StackTrace); 
                     MelonLogger.Msg(((Il2CppSystem.ArgumentException)re.WrappedException).ToString());
                 }
+#endif
                 LogException(re);
                 return;
             }
@@ -239,7 +240,7 @@ namespace HPAudio
             if (inGameMain && Keyboard.current[Key.D].wasPressedThisFrame && Keyboard.current[Key.LeftAlt].isPressed)
             {
                 //if the storys are downloaded
-                if (EekCharacterEngine.StoryManager.JJNLDMJHICJ)
+                if (EekCharacterEngine.StoryManager.CMAJKNBLHAG)
                 {
                     GetSpeakers();
 
