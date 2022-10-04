@@ -1,6 +1,6 @@
 ﻿using EekCharacterEngine.Interaction;
 using HouseParty;
-using Il2CppSystem.Collections.Generic;
+using System.Collections.Generic;
 using Il2CppSystem.IO;
 using MelonLoader;
 using NLayer;
@@ -16,14 +16,40 @@ namespace HPAudio
         private Speaker speaker1, speaker2;
         private AudioSource speaker1Source, speaker2Source;
         private readonly List<string> songs = new List<string>();
+        private readonly List<AudioClip> clips = new List<AudioClip>();
         private string folderPath;
         private int currentSong = 0;
         public bool CurrentlyPlaying = false;
         private bool gotSpeakers = false;
         private string currentSongName = "None";
+        private Rect UIRect = new Rect(10, Screen.height * 0.6f, Screen.width * 0.1f, Screen.height * 0.2f);
+        private bool ShowUI = false;
+        private bool EekPerformedStoryUpdate = false;
+
+        private MelonPreferences_Category settings;
+        private MelonPreferences_Entry<bool> makeClipsOnStart;
+        //private Il2CppSystem.Action<Il2CppSystem.Object, Il2CppSystem.IntPtr> OnStoryUpdated;
+
+        public void OnStoryUpdated(bool b1, bool b2)
+        {
+            EekPerformedStoryUpdate = true;
+        }
 
         public override void OnApplicationStart()
         {
+            settings = MelonPreferences.CreateCategory("AudioMod");
+            makeClipsOnStart = settings.CreateEntry("MakeAllClipsOnStart", true);
+
+            if (makeClipsOnStart.Value)
+            {
+                MelonLogger.Msg("The mod will create all necessary audio ressources on game start, can take some time");
+                MakeAllClips();
+                MelonLogger.Msg("All current songs loaded");
+            }
+            else
+            {
+                MelonLogger.Msg("Audio ressources are going to be created on the fly, so it will take some time until a song first loads");
+            }
             folderPath = Directory.GetCurrentDirectory() + "\\HouseParty_Data\\Resources\\Songs";
             MelonLogger.Msg("Place songs (as .mp3) here: " + folderPath);
             ReloadSongList();
@@ -32,6 +58,18 @@ namespace HPAudio
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             inGameMain = sceneName == "GameMain";
+            if (inGameMain)
+            {
+                EekCharacterEngine.StoryManager.add_OnPerformedEekStoryUpdate(new System.Action<bool, bool>(OnStoryUpdated));
+            }
+        }
+
+        private void MakeAllClips()
+        {
+            for (int i = 0; i < songs.Count; i++)
+            {
+                clips.Add(MakeClip(i));
+            }
         }
 
         /// <summary>
@@ -117,15 +155,6 @@ namespace HPAudio
         }
 
         /// <summary>
-        /// Loads the given song into the speakers clip
-        /// </summary>
-        /// <param name="path">path to the mp3 file</param>
-        public void LoadSong(string path)
-        {
-
-        }
-
-        /// <summary>
         /// Stops all this overriding and goes back to the game thing as before
         /// </summary>
         public void ReturnToGameMusic()
@@ -165,13 +194,15 @@ namespace HPAudio
             CurrentlyPlaying = false;
         }
 
-        private MpegFile LoadSongFromFile()
+        private MpegFile LoadSongFromFile(int index = -1)
         {
+            if (index < 0) index = currentSong;
+            if (index >= songs.Count || index < 0) index = 0;
             //read in mp3 as samples with nlayer
             try
             {
                 currentSongName = Path.GetFileNameWithoutExtension(songs[currentSong]);
-                return new MpegFile(songs[currentSong]);
+                return new MpegFile(songs[index]);
             }
             catch (System.Exception e)
             {
@@ -180,8 +211,9 @@ namespace HPAudio
             }
         }
 
-        private void LoadSongIntoSpeakers(MpegFile songfile)
+        private AudioClip MakeClip(int songIndex)
         {
+            var songfile = LoadSongFromFile(songIndex);
             float[] samples = new float[songfile.Length / sizeof(float)];
             try
             {
@@ -189,29 +221,23 @@ namespace HPAudio
                 songfile.ReadSamples(samples, 0, samples.Length);
                 AudioClip clip = AudioClip.Create(currentSongName, samples.Length / songfile.Channels, songfile.Channels, songfile.SampleRate, false);
                 clip.SetData(samples, 0);
-                speaker1.GBPLLLIBAIO.clip = clip;
-                speaker2.GBPLLLIBAIO.clip = clip;
-            }
-            catch (System.Runtime.CompilerServices.RuntimeWrappedException re)
-            {
-#if DEBUG
-                if (re.WrappedException != null)
-                {
-                    MelonLogger.Msg(re.WrappedException);
-                    MelonLogger.Msg(((Il2CppSystem.ArgumentException)re.WrappedException).m_paramName); 
-                    MelonLogger.Msg(((Il2CppSystem.ArgumentException)re.WrappedException).Message); 
-                    MelonLogger.Msg(((Il2CppSystem.ArgumentException)re.WrappedException).StackTrace); 
-                    MelonLogger.Msg(((Il2CppSystem.ArgumentException)re.WrappedException).ToString());
-                }
-#endif
-                LogException(re);
-                return;
+                return clip;
             }
             catch (System.Exception e)
             {
                 LogException(e);
-                return;
+                return new AudioClip();
             }
+        }
+
+        private void LoadSongIntoSpeakers()
+        {
+            AudioClip clip;
+            if (clips[currentSong].length > 0) clip = clips[currentSong];
+            else clip = MakeClip(currentSong);
+            speaker1.GBPLLLIBAIO.clip = clip;
+            speaker2.GBPLLLIBAIO.clip = clip;
+
             CurrentlyPlaying = true;
         }
 
@@ -235,42 +261,59 @@ namespace HPAudio
             //speaker2.GBPLLLIBAIO.volume = volume;
         }
 
+        private void Initialize()
+        {
+            //if the storys are downloaded
+            if (EekPerformedStoryUpdate)
+            {
+                GetSpeakers();
+
+                speaker1.GBPLLLIBAIO.Stop();
+                speaker2.GBPLLLIBAIO.Stop();
+
+                if (songs.Count < 1) ReloadSongList();
+
+                speaker1.GBPLLLIBAIO.Stop();
+                speaker2.GBPLLLIBAIO.Stop();
+
+                ManageSpeakerSettings();
+
+                LoadSongIntoSpeakers();
+                if (!CurrentlyPlaying) return;
+
+                speaker1.GBPLLLIBAIO.Play();
+                speaker2.GBPLLLIBAIO.Play();
+
+                Next();
+
+                if (CurrentlyPlaying) MelonLogger.Msg("Now playing: " + currentSongName);
+                MelonLogger.Msg($"vol: {speaker1.GBPLLLIBAIO.volume:0.00} | length {speaker1.GBPLLLIBAIO.clip.length / 60:0}m{speaker1.GBPLLLIBAIO.clip.length % 60:0.00}s");
+            }
+            else
+            {
+                MelonLogger.Msg("Please wait for the game to finish its story file download and extraction");
+            }
+        }
+
+        private void ToggleUI()
+        {
+            ShowUI = !ShowUI;
+            if (ShowUI)
+            {
+                GUILayout.BeginArea(UIRect);
+                GUILayout.EndArea();
+            }
+        }
+
         public override void OnUpdate()
         {
-            if (inGameMain && Keyboard.current[Key.D].wasPressedThisFrame && Keyboard.current[Key.LeftAlt].isPressed)
+            if (inGameMain && Keyboard.current[Key.I].wasPressedThisFrame && Keyboard.current[Key.LeftAlt].isPressed)
             {
-                //if the storys are downloaded
-                if (EekCharacterEngine.StoryManager.CMAJKNBLHAG)
-                {
-                    GetSpeakers();
-
-                    speaker1.GBPLLLIBAIO.Stop();
-                    speaker2.GBPLLLIBAIO.Stop();
-
-                    if (songs.Count < 1) ReloadSongList();
-
-                    var songfile = LoadSongFromFile();
-
-                    Next();
-
-                    speaker1.GBPLLLIBAIO.Stop();
-                    speaker2.GBPLLLIBAIO.Stop();
-
-                    ManageSpeakerSettings();
-
-                    LoadSongIntoSpeakers(songfile);
-                    if (!CurrentlyPlaying) return;
-
-                    speaker1.GBPLLLIBAIO.Play();
-                    speaker2.GBPLLLIBAIO.Play();
-
-                    if (CurrentlyPlaying) MelonLogger.Msg("Now playing: " + currentSongName);
-                    MelonLogger.Msg($"vol: {speaker1.GBPLLLIBAIO.volume:0.00} | length {speaker1.GBPLLLIBAIO.clip.length / 60:0}m{speaker1.GBPLLLIBAIO.clip.length % 60:0.00}s");
-                }
-                else
-                {
-                    MelonLogger.Msg("Please wait for the game to finish its story file download and extraction");
-                }
+                Initialize();
+            }
+            if (inGameMain && Keyboard.current[Key.A].wasPressedThisFrame && Keyboard.current[Key.LeftAlt].isPressed)
+            {
+                ToggleUI();
             }
         }
     }
