@@ -16,6 +16,7 @@ namespace HPAudio
     public class AudioMod : MelonMod
     {
         private bool inGameMain = false;
+        private bool inMainMenu = false;
         private Speaker speaker1, speaker2;
         private AudioSource gameSource1, gameSource2, modSource1, modSource2;
         private readonly List<string> songs = new List<string>();
@@ -46,7 +47,7 @@ namespace HPAudio
         private void PerformAfterStoryUpdate()
         {
             EekPerformedStoryUpdate = true;
-            if (makeClipsOnStart.Value)
+            if (makeClipsOnStart.Value && !inMainMenu)
             {
                 MelonLogger.Msg("Game finished downloading and extracting Stories, loading songs now");
 
@@ -69,7 +70,7 @@ namespace HPAudio
             ReloadSongList();
 
             if (makeClipsOnStart.Value)
-                MelonLogger.Msg("The mod will create all necessary audio ressources on game start (in the main menu), can take some time");
+                MelonLogger.Msg("The mod will create all necessary audio ressources on game start (as soon as the game has updated its story), can take some time");
             else
                 MelonLogger.Msg("Audio ressources are going to be created on the fly, so it will take some time until a song first loads");
 
@@ -81,6 +82,7 @@ namespace HPAudio
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             inGameMain = sceneName == "GameMain";
+            inMainMenu = sceneName == "MainMenu";
         }
 
         private void MakeAllClips()
@@ -224,14 +226,14 @@ namespace HPAudio
                     {
                         speaker1 = item.gameObject.GetComponent<Speaker>();
                         gameSource1 = Object.Instantiate(source.GetValue(speaker1).Cast<AudioSource>());
-                        modSource1 = Object.Instantiate(source.GetValue(speaker1).Cast<AudioSource>());
+                        modSource1 = source.GetValue(speaker1).Cast<AudioSource>();
                         source.SetValue(speaker1, modSource1);
                     }
                     else if (item.Name == "Speaker2")
                     {
                         speaker2 = item.gameObject.GetComponent<Speaker>();
                         gameSource2 = Object.Instantiate(source.GetValue(speaker2).Cast<AudioSource>());
-                        modSource2 = Object.Instantiate(source.GetValue(speaker2).Cast<AudioSource>());
+                        modSource2 = source.GetValue(speaker2).Cast<AudioSource>();
                         source.SetValue(speaker2, modSource2);
                     }
                 }
@@ -271,9 +273,16 @@ namespace HPAudio
             float[] samples = new float[songfile.Length / sizeof(float)];
             try
             {
-                songfile.StereoMode = StereoMode.DownmixToMono;
                 songfile.ReadSamples(samples, 0, samples.Length);
-                AudioClip clip = AudioClip.Create(currentSongName, samples.Length / songfile.Channels, songfile.Channels, songfile.SampleRate, false);
+
+#if DEBUG
+                MelonLogger.Msg($"{Path.GetFileNameWithoutExtension(songs[songIndex])} samples are {samples.Length} floats({songfile.Length} PCM bytes) long at {songfile.Channels} channels and {songfile.SampleRate}hz");
+#endif
+                AudioClip clip = AudioClip.Create(currentSongName, samples.Length, songfile.Channels, songfile.SampleRate, false);
+#if DEBUG
+                MelonLogger.Msg($"created audiofile without data is {clip.length} seconds long with {clip.samples} samples in {clip.channels} channels and {clip.frequency}hz");
+                MelonLogger.Msg($"other values (isReadyToPlay : {clip.isReadyToPlay}) (preLoadAudioData : {clip.preloadAudioData}) (loadState: {clip.loadState}) (loadInBackground : {clip.loadInBackground}) (loadType : {clip.loadType})");
+#endif
                 clip.SetData(samples, 0);
                 return clip;
             }
@@ -286,12 +295,17 @@ namespace HPAudio
 
         private void LoadSongIntoSpeakers()
         {
-            if (clips[currentSong].length > 0) {
+            if (clips[currentSong] != null)
+            {
+                currentSongName = Path.GetFileNameWithoutExtension(songs[currentSong]);
                 modSource1.clip = clips[currentSong]; 
                 modSource2.clip = clips[currentSong]; 
             }
             else
             {
+#if DEBUG
+                MelonLogger.Msg($"{currentSongName} is null, loading again");
+#endif
                 AudioClip clip;
                 clip = MakeClip(currentSong);
 
