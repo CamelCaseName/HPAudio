@@ -10,6 +10,11 @@ using Object = UnityEngine.Object;
 using Il2CppSystem.Reflection;
 using UnhollowerBaseLib;
 using UnhollowerRuntimeLib;
+using System.Diagnostics;
+using Il2CppSystem.Diagnostics.Tracing;
+using Il2CppMono.Unity;
+using Mono.Cecil.Cil;
+using EekUI.Support;
 
 namespace HPAudio
 {
@@ -115,6 +120,7 @@ namespace HPAudio
                 if (Path.GetExtension(_songs[i]) == ".mp3")
                 {
                     songs.Add(_songs[i]);
+                    clips.Add(null);
                 }
             }
 
@@ -295,25 +301,32 @@ namespace HPAudio
 
         private void LoadSongIntoSpeakers()
         {
-            if (clips[currentSong] != null)
+            if (currentSong < clips.Count)
             {
                 currentSongName = Path.GetFileNameWithoutExtension(songs[currentSong]);
-                modSource1.clip = clips[currentSong]; 
-                modSource2.clip = clips[currentSong]; 
+                if (clips[currentSong] != null)
+                {
+                    modSource1.clip = clips[currentSong];
+                    modSource2.clip = clips[currentSong];
+                }
+                else
+                {
+#if DEBUG
+                    MelonLogger.Msg($"{currentSongName} is null, loading again");
+#endif
+                    AudioClip clip;
+                    clip = MakeClip(currentSong);
+
+                    modSource1.clip = clip;
+                    modSource2.clip = clip;
+                }
+
+                CurrentlyPlaying = true;
             }
             else
             {
-#if DEBUG
-                MelonLogger.Msg($"{currentSongName} is null, loading again");
-#endif
-                AudioClip clip;
-                clip = MakeClip(currentSong);
-
-                modSource1.clip = clip;
-                modSource2.clip = clip;
+                currentSong = 0;
             }
-
-            CurrentlyPlaying = true;
         }
 
         public void ManageSpeakerSettings()
@@ -373,11 +386,6 @@ namespace HPAudio
         private void ToggleUI()
         {
             ShowUI = !ShowUI;
-            if (ShowUI)
-            {
-                GUILayout.BeginArea(UIRect);
-                GUILayout.EndArea();
-            }
         }
 
         public override void OnUpdate()
@@ -390,6 +398,30 @@ namespace HPAudio
             {
                 ToggleUI();
             }
+
+            if (Keyboard.current[Key.D].wasPressedThisFrame && Keyboard.current[Key.LeftAlt].isPressed)
+            {
+                var songfile = LoadSongFromFile(0);
+                float[] samples = new float[songfile.Length / sizeof(float)];
+                songfile.ReadSamples(samples, 0, samples.Length);
+
+                MelonLogger.Msg($"{Path.GetFileNameWithoutExtension(songs[0])} samples are {samples.Length} floats({songfile.Length} PCM bytes) long at {songfile.Channels} channels and {songfile.SampleRate}hz");
+                AudioClip clip = AudioClip.Create(currentSongName, samples.Length, songfile.Channels, songfile.SampleRate, false);
+
+                MelonLogger.Msg($"created audiofile without data is {clip.length} seconds long with {clip.samples} samples in {clip.channels} channels and {clip.frequency}hz");
+                MelonLogger.Msg($"other values (isReadyToPlay : {clip.isReadyToPlay}) (preLoadAudioData : {clip.preloadAudioData}) (loadState: {clip.loadState}) (loadInBackground : {clip.loadInBackground}) (loadType : {clip.loadType})");
+                clip.SetData(samples, 0);
+            }
         }
+
+        public override void OnGUI()
+        {
+            if (ShowUI)
+            {
+                GUILayout.BeginArea(UIRect);
+                GUILayout.EndArea();
+            }
+        }
+
     }
 }
