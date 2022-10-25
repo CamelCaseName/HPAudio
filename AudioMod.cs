@@ -1,20 +1,15 @@
 ﻿using EekCharacterEngine.Interaction;
 using HouseParty;
-using System.Collections.Generic;
 using Il2CppSystem.IO;
-using MelonLoader;
-using NLayer;
-using UnityEngine;
-using UnityEngine.InputSystem;
-using Object = UnityEngine.Object;
 using Il2CppSystem.Reflection;
+using MelonLoader;
+using System.Collections.Generic;
 using UnhollowerBaseLib;
 using UnhollowerRuntimeLib;
-using System.Diagnostics;
-using Il2CppSystem.Diagnostics.Tracing;
-using Il2CppMono.Unity;
-using Mono.Cecil.Cil;
-using EekUI.Support;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.Networking;
+using Object = UnityEngine.Object;
 
 namespace HPAudio
 {
@@ -109,7 +104,7 @@ namespace HPAudio
         }
 
         /// <summary>
-        /// Reloads the song index
+        /// Reloads the song songIndex
         /// </summary>
         public void ReloadSongList()
         {
@@ -256,41 +251,20 @@ namespace HPAudio
             CurrentlyPlaying = false;
         }
 
-        private MpegFile LoadSongFromFile(int index = -1)
-        {
-            if (index < 0) index = currentSong;
-            if (index >= songs.Count || index < 0) index = 0;
-            //read in mp3 as samples with nlayer
-            try
-            {
-                currentSongName = Path.GetFileNameWithoutExtension(songs[currentSong]);
-                return new MpegFile(songs[index]);
-            }
-            catch (System.Exception e)
-            {
-                LogException(e);
-                return null;
-            }
-        }
 
         private AudioClip MakeClip(int songIndex)
         {
-            var songfile = LoadSongFromFile(songIndex);
-            float[] samples = new float[songfile.Length / sizeof(float)];
+            if (songIndex < 0) songIndex = currentSong;
+            if (songIndex >= songs.Count || songIndex < 0) songIndex = 0;
             try
             {
-                songfile.ReadSamples(samples, 0, samples.Length);
+                currentSongName = Path.GetFileNameWithoutExtension(songs[currentSong]);
+                var uwr = UnityWebRequest.Get($"file://{songs[currentSong]}");
+                uwr.SendWebRequest();
 
-#if DEBUG
-                MelonLogger.Msg($"{Path.GetFileNameWithoutExtension(songs[songIndex])} samples are {samples.Length} floats({songfile.Length} PCM bytes) long at {songfile.Channels} channels and {songfile.SampleRate}hz");
-#endif
-                AudioClip clip = AudioClip.Create(currentSongName, samples.Length, songfile.Channels, songfile.SampleRate, false);
-#if DEBUG
-                MelonLogger.Msg($"created audiofile without data is {clip.length} seconds long with {clip.samples} samples in {clip.channels} channels and {clip.frequency}hz");
-                MelonLogger.Msg($"other values (isReadyToPlay : {clip.isReadyToPlay}) (preLoadAudioData : {clip.preloadAudioData}) (loadState: {clip.loadState}) (loadInBackground : {clip.loadInBackground}) (loadType : {clip.loadType})");
-#endif
-                clip.SetData(samples, 0);
-                return clip;
+                while (!uwr.isDone) ;
+
+                return WebRequestWWW.InternalCreateAudioClipUsingDH(uwr.downloadHandler, uwr.url, false, false, AudioType.UNKNOWN);
             }
             catch (System.Exception e)
             {
@@ -311,14 +285,10 @@ namespace HPAudio
                 }
                 else
                 {
-#if DEBUG
-                    MelonLogger.Msg($"{currentSongName} is null, loading again");
-#endif
-                    AudioClip clip;
-                    clip = MakeClip(currentSong);
+                    clips[currentSong] = MakeClip(currentSong);
 
-                    modSource1.clip = clip;
-                    modSource2.clip = clip;
+                    modSource1.clip = clips[currentSong];
+                    modSource2.clip = clips[currentSong];
                 }
 
                 CurrentlyPlaying = true;
@@ -397,20 +367,6 @@ namespace HPAudio
             if (inGameMain && Keyboard.current[Key.A].wasPressedThisFrame && Keyboard.current[Key.LeftAlt].isPressed)
             {
                 ToggleUI();
-            }
-
-            if (Keyboard.current[Key.D].wasPressedThisFrame && Keyboard.current[Key.LeftAlt].isPressed)
-            {
-                var songfile = LoadSongFromFile(0);
-                float[] samples = new float[songfile.Length / sizeof(float)];
-                songfile.ReadSamples(samples, 0, samples.Length);
-
-                MelonLogger.Msg($"{Path.GetFileNameWithoutExtension(songs[0])} samples are {samples.Length} floats({songfile.Length} PCM bytes) long at {songfile.Channels} channels and {songfile.SampleRate}hz");
-                AudioClip clip = AudioClip.Create(currentSongName, samples.Length, songfile.Channels, songfile.SampleRate, false);
-
-                MelonLogger.Msg($"created audiofile without data is {clip.length} seconds long with {clip.samples} samples in {clip.channels} channels and {clip.frequency}hz");
-                MelonLogger.Msg($"other values (isReadyToPlay : {clip.isReadyToPlay}) (preLoadAudioData : {clip.preloadAudioData}) (loadState: {clip.loadState}) (loadInBackground : {clip.loadInBackground}) (loadType : {clip.loadType})");
-                clip.SetData(samples, 0);
             }
         }
 
