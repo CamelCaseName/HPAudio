@@ -67,7 +67,7 @@ namespace HPAudio
             if (CurrentlyPlaying) Play();
         }
 
-        public override void OnApplicationStart()
+        public override void OnInitializeMelon()
         {
             settings = MelonPreferences.CreateCategory("AudioMod");
             makeClipsOnStart = settings.CreateEntry("MakeAllClipsOnStart", true);
@@ -80,7 +80,6 @@ namespace HPAudio
                 MelonLogger.Msg("The mod will create all necessary audio ressources on game start (as soon as the game has updated its story), can take some time");
             else
                 MelonLogger.Msg("Audio ressources are going to be created on the fly, so it will take some time until a song first loads");
-
 
             EekCharacterEngine.StoryManager.add_OnPerformedEekStoryUpdate(new System.Action<bool, bool>(OnStoryUpdated));
             EekCharacterEngine.StoryManager.add_OnFailedEekStoryUpdate(new System.Action<Color, string>(OnStoryFailed));
