@@ -1,11 +1,11 @@
-﻿using EekCharacterEngine.Interaction;
-using HouseParty;
+﻿using Il2CppEekCharacterEngine.Interaction;
+using Il2CppHouseParty;
+using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppSystem.IO;
 using Il2CppSystem.Reflection;
 using MelonLoader;
 using System.Collections.Generic;
-using UnhollowerBaseLib;
-using UnhollowerRuntimeLib;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Networking;
@@ -81,8 +81,8 @@ namespace HPAudio
             else
                 MelonLogger.Msg("Audio ressources are going to be created on the fly, so it will take some time until a song first loads");
 
-            EekCharacterEngine.StoryManager.add_OnPerformedEekStoryUpdate(new System.Action<bool, bool>(OnStoryUpdated));
-            EekCharacterEngine.StoryManager.add_OnFailedEekStoryUpdate(new System.Action<Color, string>(OnStoryFailed));
+            Il2CppEekCharacterEngine.StoryManager.add_OnPerformedEekStoryUpdate(new System.Action<bool, bool>(OnStoryUpdated));
+            Il2CppEekCharacterEngine.StoryManager.add_OnFailedEekStoryUpdate(new System.Action<Color, string>(OnStoryFailed));
         }
 
         public override void OnGUI()
