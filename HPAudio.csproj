@@ -9,9 +9,10 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>HPAudio</RootNamespace>
     <AssemblyName>HPAudio</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -57,18 +58,6 @@
       <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Il2CppAssemblies\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Il2CppCinemachine">
-      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Il2CppAssemblies\Il2CppCinemachine.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Il2CppInterop.Common">
-      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\net6\Il2CppInterop.Common.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Il2CppInterop.Generator">
-      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\net6\Il2CppInterop.Generator.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="Il2CppInterop.Runtime">
       <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\net6\Il2CppInterop.Runtime.dll</HintPath>
       <Private>False</Private>
@@ -83,14 +72,9 @@
     </Reference>
     <Reference Include="MelonLoader">
       <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\net6\MelonLoader.dll</HintPath>
-      <Private>False</Private>
     </Reference>
     <Reference Include="Unity.InputSystem">
       <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Il2CppAssemblies\Unity.InputSystem.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine">
-      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Il2CppAssemblies\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.AudioModule">
@@ -105,16 +89,8 @@
       <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Il2CppAssemblies\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Il2CppAssemblies\UnityEngine.InputLegacyModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.InputModule">
-      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Il2CppAssemblies\UnityEngine.InputModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.PhysicsModule">
-      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Il2CppAssemblies\UnityEngine.PhysicsModule.dll</HintPath>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>G:\SteamLibrary\steamapps\common\House Party\MelonLoader\Il2CppAssemblies\UnityEngine.UIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.UnityWebRequestAudioModule">
