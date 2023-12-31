@@ -1,6 +1,4 @@
-﻿using Il2CppEekCharacterEngine;
-using Il2CppEekCharacterEngine.Interaction;
-using Il2CppEekUI.Items;
+﻿using Il2CppEekCharacterEngine.Interaction;
 using Il2CppHouseParty;
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
@@ -11,7 +9,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Networking;
-using Color = UnityEngine.Color;
 using Object = UnityEngine.Object;
 
 namespace HPAudio
@@ -320,7 +317,7 @@ namespace HPAudio
 
                 foreach (var property in Il2CppType.Of<Speaker>().GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
                 {
-                    //MelonLogger.Msg($"{property.Name} {property.GetParametersInternal()?[0].Name}");
+                    MelonLogger.Msg($"{property.Name} ");
                     if (property.GetParametersCount() == 1)
                         if (property.GetParametersInternal()[0].ParameterType == Il2CppType.Of<AudioSource>())
                         {
@@ -334,7 +331,7 @@ namespace HPAudio
                 if (setSource == null)
                 {
                     MelonLogger.Error("method to set the speakers source not found, cant set our own source!");
-                    return;
+                   // return;
                 }
 
                 foreach (var property in Il2CppType.Of<Speaker>().GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
@@ -352,7 +349,7 @@ namespace HPAudio
                 if (getSource == null)
                 {
                     MelonLogger.Error("method to get the speakers source not found, cant get the game's source!");
-                    return;
+                   // return;
                 }
 
                 if (itemList != null)
@@ -362,18 +359,24 @@ namespace HPAudio
                         {
                             MelonLogger.Msg("got speaker one");
                             speaker1 = item.gameObject.GetComponent<Speaker>();
-                            gameSource1 = Object.Instantiate(getSource.Invoke(speaker1, null).Cast<AudioSource>());
-                            modSource1 = getSource.Invoke(speaker1, null).Cast<AudioSource>();
-                            setSource.Invoke(speaker1, new Il2CppReferenceArray<Il2CppSystem.Object>(new Il2CppSystem.Object[] { modSource1 }));
+                            //modSource1 = Object.Instantiate(getSource.Invoke(speaker1, null).Cast<AudioSource>());
+                            modSource1 = Object.Instantiate(speaker1._audioSource);
+                            //gameSource1 = getSource.Invoke(speaker1, null).Cast<AudioSource>();
+                            gameSource1 = speaker1._audioSource;
+                            //setSource.Invoke(speaker1, new Il2CppReferenceArray<Il2CppSystem.Object>(new Il2CppSystem.Object[] { modSource1 }));
+                            speaker1._audioSource = modSource1;
                             MelonLogger.Msg("prepared speaker one's source");
                         }
                         else if (item.Name == "Speaker2")
                         {
                             MelonLogger.Msg("got speaker two");
                             speaker2 = item.gameObject.GetComponent<Speaker>();
-                            gameSource2 = Object.Instantiate(getSource.Invoke(speaker2, null).Cast<AudioSource>());
-                            modSource2 = getSource.Invoke(speaker2, null).Cast<AudioSource>();
-                            setSource.Invoke(speaker2, new Il2CppReferenceArray<Il2CppSystem.Object>(new Il2CppSystem.Object[] { modSource2 }));
+                            //modSource2 = Object.Instantiate(getSource.Invoke(speaker2, null).Cast<AudioSource>());
+                            modSource2 = Object.Instantiate(speaker2._audioSource);
+                            //gameSource2 = getSource.Invoke(speaker2, null).Cast<AudioSource>();
+                            gameSource2 = speaker2._audioSource;
+                            //setSource.Invoke(speaker2, new Il2CppReferenceArray<Il2CppSystem.Object>(new Il2CppSystem.Object[] { modSource2 }));
+                            speaker2._audioSource = modSource2;
                             MelonLogger.Msg("prepared speaker two's source");
                         }
                     }
