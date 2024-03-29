@@ -34,8 +34,8 @@ using System.Runtime.InteropServices;
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
-[assembly: MelonInfo(typeof(HPAudio.Audio), nameof(HPAudio.Audio), "1.1.1", "Lenny")]
+[assembly: MelonInfo(typeof(HPAudio.Audio), nameof(HPAudio.Audio), "1.2.0", "Lenny")]
 [assembly: MelonGame("Eek", "House Party")]
-[assembly: MelonColor(System.ConsoleColor.Red)]
+[assembly: MelonColor(255, 255, 0, 0)]
 
 //[assembly: RuntimeCompatibility(WrapNonExceptionThrows = false)]

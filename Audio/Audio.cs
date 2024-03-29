@@ -1,15 +1,13 @@
 ﻿using Il2CppEekCharacterEngine.Interaction;
 using Il2CppHouseParty;
-using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
-using Il2CppSystem.IO;
-using Il2CppSystem.Reflection;
 using MelonLoader;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Networking;
-using Object = UnityEngine.Object;
 
 namespace HPAudio
 {
@@ -18,7 +16,23 @@ namespace HPAudio
         private readonly List<AudioClip?> clips = new();
         private readonly Il2CppReferenceArray<GUILayoutOption> opt = new(System.Array.Empty<GUILayoutOption>());
         private readonly List<string> songs = new();
-        private int currentSong = 0;
+        private int _currentSong = 0;
+        private int CurrentSong
+        {
+            get
+            {
+                return _currentSong;
+            }
+            set
+            {
+                if (value < songs.Count)
+                {
+                    _currentSong = value;
+                    previousSongName = currentSongName;
+                    currentSongName = Path.GetFileNameWithoutExtension(songs[value]);
+                }
+            }
+        }
         private string currentSongName = "None", previousSongName = "None";
         private string folderPath = "";
         private AudioSource gameSource1 = default!, gameSource2 = default!, modSource1 = default!, modSource2 = default!;
@@ -27,8 +41,6 @@ namespace HPAudio
         private MelonPreferences_Entry<bool> makeClipsOnStart = default!;
         private MelonPreferences_Category settings = default!;
         private bool ShowUI = false;
-        private MethodInfo? setSource = null;
-        private MethodInfo? getSource = null;
         private Speaker speaker1 = default!, speaker2 = default!;
         private Rect UIRect = new(10, Screen.height * 0.2f, Screen.width * 0.2f, Screen.height * 0.2f);
         public bool CurrentlyPlaying { get; private set; } = false;
@@ -45,12 +57,18 @@ namespace HPAudio
             modSource2.ignoreListenerPause = true;
             modSource1.mute = false;
             modSource2.mute = false;
-            modSource1.bypassEffects = true;
-            modSource2.bypassEffects = true;
-            modSource1.bypassListenerEffects = true;
-            modSource2.bypassListenerEffects = true;
-            //modSource1.volume = volume;
-            //modSource2.volume = volume;
+            modSource1.bypassEffects = gameSource1.bypassEffects;
+            modSource2.bypassEffects = gameSource2.bypassEffects;
+            modSource1.bypassListenerEffects = gameSource1.bypassListenerEffects;
+            modSource2.bypassListenerEffects = gameSource2.bypassListenerEffects;
+            modSource1.volume = gameSource1.volume;
+            modSource2.volume = gameSource2.volume;
+            modSource1.outputAudioMixerGroup = gameSource1.outputAudioMixerGroup;
+            modSource2.outputAudioMixerGroup = gameSource2.outputAudioMixerGroup;
+            modSource1.priority = gameSource1.priority;
+            modSource2.priority = gameSource2.priority;
+            modSource1.spatialBlend = gameSource1.spatialBlend;
+            modSource2.spatialBlend = gameSource2.spatialBlend;
         }
 
         /// <summary>
@@ -58,20 +76,17 @@ namespace HPAudio
         /// </summary>
         public void Next()
         {
-            if (++currentSong >= songs.Count) currentSong = 0;
-
-            previousSongName = currentSongName;
-            currentSongName = Path.GetFileNameWithoutExtension(songs[currentSong]);
-
+            if (CurrentSong + 1 >= songs.Count) CurrentSong = 0;
+            else CurrentSong++;
             if (CurrentlyPlaying) Play();
         }
 
         public override void OnInitializeMelon()
         {
             settings = MelonPreferences.CreateCategory("AudioMod");
-            makeClipsOnStart = settings.CreateEntry("MakeAllClipsOnStart", true);
+            makeClipsOnStart = settings.CreateEntry("MakeAllClipsOnStart", false);
 
-            folderPath = Directory.GetCurrentDirectory() + "\\HouseParty_Data\\Resources\\Songs";
+            folderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Eek", "House Party", "Mods", "Songs");
             MelonLogger.Msg("[Audio] Place songs (as .mp3) here: " + folderPath);
             ReloadSongList();
 
@@ -147,10 +162,6 @@ namespace HPAudio
                 modSource1.Pause();
                 modSource2.Pause();
             }
-            else
-            {
-                GetSpeakers();
-            }
         }
 
         /// <summary>
@@ -168,23 +179,37 @@ namespace HPAudio
                 //new playback from pause or switching during playback to a new song
                 if (currentSongName != previousSongName)
                 {
-                    if (clips[currentSong] != null)
+                    if (clips[CurrentSong] != null)
                     {
-                        modSource1.clip = clips[currentSong];
-                        modSource2.clip = clips[currentSong];
+                        modSource1.clip = clips[CurrentSong];
+                        modSource2.clip = clips[CurrentSong];
+                        CurrentlyPlaying = true;
                     }
                     else
                     {
-                        clips[currentSong] = MakeClip(currentSong);
+                        if (MakeClip(CurrentSong, out var audio))
+                        {
+                            clips[CurrentSong] = audio;
 
-                        modSource1.clip = clips[currentSong];
-                        modSource2.clip = clips[currentSong];
+                            modSource1.clip = clips[CurrentSong];
+                            modSource2.clip = clips[CurrentSong];
+                            CurrentlyPlaying = true;
+                        }
+                        else
+                        {
+                            CurrentlyPlaying = false;
+                        }
                     }
-                    CurrentlyPlaying = true;
                 }
                 //Play if everything went fine
                 if (CurrentlyPlaying)
                 {
+                    speaker1._audioSource = modSource1;
+                    speaker2._audioSource = modSource2;
+                    gameSource1.enabled = false;
+                    gameSource2.enabled = false;
+                    modSource1.enabled = true;
+                    modSource2.enabled = true;
                     modSource1.Play();
                     modSource2.Play();
                 }
@@ -202,11 +227,8 @@ namespace HPAudio
         /// </summary>
         public void Previous()
         {
-            if (--currentSong < 0) currentSong = songs.Count - 1;
-
-            previousSongName = currentSongName;
-            currentSongName = Path.GetFileNameWithoutExtension(songs[currentSong]);
-
+            if (CurrentSong - 1 < 0) CurrentSong = songs.Count - 1;
+            else CurrentSong--;
             if (CurrentlyPlaying) Play();
         }
 
@@ -218,13 +240,16 @@ namespace HPAudio
             songs.Clear();
             clips.Clear();
             var _songs = Directory.GetFiles(folderPath);
-            for (int i = 0; i < _songs.Count; i++)
+            for (int i = 0; i < _songs.Length; i++)
             {
                 if (Path.GetExtension(_songs[i]) == ".mp3")
                 {
                     songs.Add(_songs[i]);
-                    if (!makeClipsOnStart.Value) clips.Add(MakeClip(i));
-                    else clips.Add(null);
+                    if (!makeClipsOnStart.Value)
+                    {
+                        if (MakeClip(i, out var audio))
+                            clips.Add(audio);
+                    }
                 }
             }
 
@@ -239,7 +264,7 @@ namespace HPAudio
             else
             {
                 MelonLogger.Msg("No songs found, here are files we did find:");
-                for (int i = 0; i < _songs.Count; i++)
+                for (int i = 0; i < _songs.Length; i++)
                 {
                     MelonLogger.Msg(" - " + _songs[i]);
                 }
@@ -254,14 +279,14 @@ namespace HPAudio
             if (gotSpeakers)
             {
                 CurrentlyPlaying = false;
-                setSource!.Invoke(speaker1, new(new[] { gameSource1 }));
-                setSource!.Invoke(speaker2, new(new[] { gameSource2 }));
+                gameSource1.enabled = true;
+                gameSource2.enabled = true;
+                modSource1.enabled = false;
+                modSource2.enabled = false;
+                speaker1._audioSource = gameSource1;
+                speaker2._audioSource = gameSource2;
                 speaker1.StartMusic();
                 speaker2.StartMusic();
-            }
-            else
-            {
-                GetSpeakers();
             }
         }
 
@@ -270,11 +295,7 @@ namespace HPAudio
         /// </summary>
         public void Shuffle()
         {
-            currentSong = Random.RandomRangeInt(0, clips.Count - 1);
-
-            previousSongName = currentSongName;
-            currentSongName = Path.GetFileNameWithoutExtension(songs[currentSong]);
-
+            CurrentSong = UnityEngine.Random.RandomRangeInt(0, clips.Count - 1);
             if (CurrentlyPlaying) Play();
         }
 
@@ -289,10 +310,10 @@ namespace HPAudio
 
                 modSource1.Stop();
                 modSource2.Stop();
-            }
-            else
-            {
-                GetSpeakers();
+                modSource1.enabled = false;
+                modSource2.enabled = false;
+                gameSource1.enabled = false;
+                gameSource2.enabled = false;
             }
         }
 
@@ -300,86 +321,28 @@ namespace HPAudio
         {
             if (!gotSpeakers)
             {
-                MethodInfo itemList = default!;
-                foreach (var item in Il2CppType.Of<ItemManager>().GetMethods(BindingFlags.Static | BindingFlags.Public))
-                {
-                    //MelonLogger.Msg($"{item.Name} {item.ReturnType.FullName}");
-                    if (item.ReturnType == Il2CppType.Of<Il2CppSystem.Collections.Generic.List<InteractiveItem>>())
-                    {
-                        itemList = item;
-#if DEBUG
-                        MelonLogger.Msg("found " + item.ToString());
-#endif
-                        break;
-                    }
-                }
-                if (itemList == null) MelonLogger.Error("Itemlist not found, can't get the speakers!");
+                if (ItemManager.GetItem("Speaker1") is null)
+                    return;
+                speaker1 = ItemManager.GetItem("Speaker1").gameObject.GetComponent<Speaker>();
 
-                foreach (var property in Il2CppType.Of<Speaker>().GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
-                {
-                    MelonLogger.Msg($"{property.Name} ");
-                    if (property.GetParametersCount() == 1)
-                        if (property.GetParametersInternal()[0].ParameterType == Il2CppType.Of<AudioSource>())
-                        {
-                            setSource = property;
-#if DEBUG
-                            MelonLogger.Msg("found " + property.ToString());
-#endif
-                            break;
-                        }
-                }
-                if (setSource == null)
-                {
-                    MelonLogger.Error("method to set the speakers source not found, cant set our own source!");
-                   // return;
-                }
+                if (speaker1 is null || speaker1._audioSource is null)
+                    return;
 
-                foreach (var property in Il2CppType.Of<Speaker>().GetMethods(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public))
-                {
-                    MelonLogger.Msg($"{property.Name} {property.ReturnType.FullName}");
-                    if (property.ReturnType == Il2CppType.Of<AudioSource>() && property.GetParametersCount() == 0)
-                    {
-                        getSource ??= property;
-#if DEBUG
-                        MelonLogger.Msg("found " + property.ToString());
-#endif
-                        //break;
-                    }
-                }
-                if (getSource == null)
-                {
-                    MelonLogger.Error("method to get the speakers source not found, cant get the game's source!");
-                   // return;
-                }
+                gameSource1 = speaker1._audioSource;
+                modSource1 = speaker1.gameObject.AddComponent<AudioSource>();
+                speaker1._audioSource = modSource1;
+                MelonLogger.Msg("prepared first speaker");
 
-                if (itemList != null)
-                    foreach (var item in itemList.Invoke(ItemManager.Singleton, null).Cast<Il2CppSystem.Collections.Generic.List<InteractiveItem>>())
-                    {
-                        if (item.Name == "Speaker1")
-                        {
-                            MelonLogger.Msg("got speaker one");
-                            speaker1 = item.gameObject.GetComponent<Speaker>();
-                            //modSource1 = Object.Instantiate(getSource.Invoke(speaker1, null).Cast<AudioSource>());
-                            modSource1 = Object.Instantiate(speaker1._audioSource);
-                            //gameSource1 = getSource.Invoke(speaker1, null).Cast<AudioSource>();
-                            gameSource1 = speaker1._audioSource;
-                            //setSource.Invoke(speaker1, new Il2CppReferenceArray<Il2CppSystem.Object>(new Il2CppSystem.Object[] { modSource1 }));
-                            speaker1._audioSource = modSource1;
-                            MelonLogger.Msg("prepared speaker one's source");
-                        }
-                        else if (item.Name == "Speaker2")
-                        {
-                            MelonLogger.Msg("got speaker two");
-                            speaker2 = item.gameObject.GetComponent<Speaker>();
-                            //modSource2 = Object.Instantiate(getSource.Invoke(speaker2, null).Cast<AudioSource>());
-                            modSource2 = Object.Instantiate(speaker2._audioSource);
-                            //gameSource2 = getSource.Invoke(speaker2, null).Cast<AudioSource>();
-                            gameSource2 = speaker2._audioSource;
-                            //setSource.Invoke(speaker2, new Il2CppReferenceArray<Il2CppSystem.Object>(new Il2CppSystem.Object[] { modSource2 }));
-                            speaker2._audioSource = modSource2;
-                            MelonLogger.Msg("prepared speaker two's source");
-                        }
-                    }
+                if (ItemManager.GetItem("Speaker2") is null)
+                    return;
+                speaker2 = ItemManager.GetItem("Speaker2").gameObject.GetComponent<Speaker>();
+                if (speaker2 is null || speaker2._audioSource is null)
+                    return;
+
+                gameSource2 = speaker2._audioSource;
+                modSource2 = speaker2.gameObject.AddComponent<AudioSource>();
+                speaker2._audioSource = modSource2;
+                MelonLogger.Msg("prepared second speaker");
             }
             if (!gotSpeakers && speaker1 != null && speaker2 != null) gotSpeakers = true;
         }
@@ -437,12 +400,15 @@ namespace HPAudio
         {
             for (int i = 0; i < clips.Count; i++)
             {
-                clips[i] = MakeClip(i);
-                MelonLogger.Msg($"{clips[i]?.name} {clips[i]?.length}");
+                if (MakeClip(i, out var audio))
+                {
+                    clips[i] = audio;
+                    MelonLogger.Msg($"{clips[i]?.name} {clips[i]?.length}");
+                }
             }
         }
 
-        private AudioClip MakeClip(int songIndex)
+        private bool MakeClip(int songIndex, out AudioClip? audio)
         {
             if (songIndex < 0) songIndex = 0;
             if (songIndex >= songs.Count || songIndex < 0) songIndex = 0;
@@ -453,12 +419,17 @@ namespace HPAudio
 
                 while (!uwr.isDone) ;
 
-                return WebRequestWWW.InternalCreateAudioClipUsingDH(uwr.downloadHandler, uwr.url, false, false, AudioType.UNKNOWN);
+                audio = WebRequestWWW.InternalCreateAudioClipUsingDH(uwr.downloadHandler, uwr.url, false, false, AudioType.UNKNOWN);
+                if (audio is null)
+                    return false;
+                audio.name = Path.GetFileNameWithoutExtension(songs[songIndex]);
+                return true;
             }
-            catch (System.Exception e)
+            catch (Exception e)
             {
                 LogException(e);
-                return new AudioClip();
+                audio = null;
+                return false;
             }
         }
 
