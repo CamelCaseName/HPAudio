@@ -1,4 +1,6 @@
-﻿using Il2CppEekCharacterEngine.Interaction;
+﻿using Il2CppEekCharacterEngine;
+using Il2CppEekCharacterEngine.Interaction;
+using Il2CppEekEvents.Values;
 using Il2CppHouseParty;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using MelonLoader;
@@ -36,17 +38,24 @@ namespace HPAudio
                 }
             }
         }
-        private string currentSongName = "None";
-        private string folderPath = "";
+        private AudioSource spoofer = null!;
         private bool gotSpeakers = false;
         private bool inGameMain = false;
-        private MelonPreferences_Entry<bool> makeClipsOnStart = default!;
-        private MelonPreferences_Category settings = default!;
         private bool ShowUI = false;
-        private Speaker speaker1 = default!, speaker2 = default!;
-        private Rect UIRect = new(10, Screen.height * 0.2f, Screen.width * 0.2f, Screen.height * 0.2f);
-        public bool CurrentlyPlaying = false;
         private bool shuffling = false;
+        private float pausedTime = 0;
+        private int AllMusicOff = 0;
+        private int Music1Off = 0;
+        private int Music2On = 0;
+        private MelonPreferences_Category settings = default!;
+        private MelonPreferences_Entry<bool> makeClipsOnStart = default!;
+        private Rect UIRect = new(10, Screen.height * 0.2f, Screen.width * 0.2f, Screen.height * 0.2f);
+        private Speaker speaker1 = default!, speaker2 = default!;
+        private string currentSongName = "None";
+        private string folderPath = "";
+        public bool CurrentlyPlaying = false;
+        public bool paused = false;
+        public bool stopped = false;
 
         /// <summary>
         /// Loads and plays the next song from the list
@@ -65,6 +74,8 @@ namespace HPAudio
             makeClipsOnStart = settings.CreateEntry("MakeAllClipsOnStart", false);
 
             folderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Eek", "House Party", "Mods", "Songs");
+            if (!Directory.Exists(folderPath))
+                Directory.CreateDirectory(folderPath);
             MelonLogger.Msg("[Audio] Place songs (as .mp3) here: " + folderPath);
 
             if (makeClipsOnStart.Value)
@@ -75,6 +86,7 @@ namespace HPAudio
 
         public override void OnGUI()
         {
+            //todo redo ui at some point
             if (ShowUI)
             {
                 GUILayout.BeginArea(UIRect);
@@ -85,7 +97,7 @@ namespace HPAudio
                     Previous();
                 if (GUILayout.Button("Shuffle", opt))
                     Shuffle();
-                if (CurrentlyPlaying)
+                if (!paused && !stopped)
                 {
                     if (GUILayout.Button("Pause", opt))
                         Pause();
@@ -109,7 +121,9 @@ namespace HPAudio
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
-            inGameMain = sceneName == "GameMain";
+            //so far only teste for OS
+            //todo test for other stories
+            inGameMain = sceneName == "GameMain" && GameManager.GetActiveStoryName() == "Original Story";
             if (inGameMain)
                 Initialize();
         }
@@ -129,9 +143,71 @@ namespace HPAudio
                 }
 
                 if (speaker1 is null || speaker2 is null) return;
-                if (speaker1._audioSource is null || speaker2._audioSource is null) return;
+                if (speaker1._audioSource is null || spoofer is null) return;
 
                 if (CurrentlyPlaying)
+                {
+                    if (speaker1._audioSource.clip != spoofer.clip && speaker1._audioSource.clip.name.Contains("Track"))
+                    {
+                        if (spoofer.isPlaying)
+                        {
+                            speaker1._audioSource.clip = spoofer.clip;
+                            speaker1._audioSource.time = spoofer.time;
+                        }
+                        else
+                        {
+                            Play();
+                        }
+                    }
+
+                    //speaker 2 starts and stops itself and stops all
+                    //the should play is a bit f'd cuz it also gets set when we change the clip
+                    if (Music2On == 0 && ValueStore.GetPlayerValues().GetInt("Music2On") == 1)
+                    {
+                        //only join if we are playing our clip, if we are playing a game clip we restart
+                        if (speaker1._audioSource.clip == clips[CurrentSong])
+                        {
+                            speaker2.StopMusic();
+                            spoofer.Play();
+                            spoofer.time = speaker1._audioSource.time;
+                        }
+                        else
+                        {
+                            Play();
+                        }
+                    }
+                    else if (Music2On == 1 && ValueStore.GetPlayerValues().GetInt("Music2On") == 0)
+                    {
+                        spoofer.Stop();
+                    }
+
+                    //speaker1 starts all
+                    if (Music1Off == 1 && ValueStore.GetPlayerValues().GetInt("Music1Off") == 0)
+                    {
+                        if (spoofer.isPlaying)
+                        {
+                            speaker2.StopMusic();
+                            speaker1.StopMusic();
+                            speaker1._audioSource.clip = clips[CurrentSong];
+                            speaker1._audioSource.Play();
+                            speaker1._audioSource.time = spoofer.time;
+                        }
+                        else
+                        {
+                            Play();
+                        }
+                    }
+                    //speaker 1 stops all
+                    else if (Music1Off == 0 && ValueStore.GetPlayerValues().GetInt("Music1Off") == 1)
+                    {
+                        Stop();
+                    }
+
+                    if (AllMusicOff == 0 && ValueStore.GetPlayerValues().GetInt("AllMusicOff") == 1)
+                    {
+                        Stop();
+                    }
+
                     if ((speaker1._audioSource.clip.length - speaker1._audioSource.time) / speaker1._audioSource.pitch < 0.2f)
                     {
                         if (shuffling)
@@ -143,6 +219,27 @@ namespace HPAudio
                             Next();
                         }
                     }
+
+                    SyncSpoofer();
+
+                    if (speaker2._audioSource.isPlaying && spoofer.isPlaying)
+                    {
+                        spoofer.Stop();
+                        CurrentlyPlaying = false;
+                        currentSongName = "None";
+                    }
+                }
+                else
+                {
+                    if (speaker2._audioSource.isPlaying && spoofer.isPlaying)
+                    {
+                        spoofer.Stop();
+                    }
+                }
+
+                Music2On = ValueStore.GetPlayerValues().GetInt("Music2On");
+                Music1Off = ValueStore.GetPlayerValues().GetInt("Music1Off");
+                AllMusicOff = ValueStore.GetPlayerValues().GetInt("AllMusicOff");
             }
         }
 
@@ -153,10 +250,10 @@ namespace HPAudio
         {
             if (gotSpeakers)
             {
+                paused = true;
                 MelonLogger.Msg($"Paused playback");
-                CurrentlyPlaying = false;
-                speaker1._audioSource.Pause();
-                speaker2._audioSource.Pause();
+                pausedTime = spoofer.isPlaying ? spoofer.time : speaker1._audioSource.time;
+                Stop();
             }
         }
 
@@ -165,13 +262,13 @@ namespace HPAudio
         /// </summary>
         public void Play()
         {
-            MelonLogger.Msg("Trying to play " + CurrentSong + " - " + currentSongName);
+            //MelonLogger.Msg("Trying to play " + CurrentSong + " - " + currentSongName);
             if (gotSpeakers)
             {
                 if (clips.ContainsKey(CurrentSong))
                 {
                     speaker1._audioSource.clip = clips[CurrentSong];
-                    speaker2._audioSource.clip = clips[CurrentSong];
+                    spoofer.clip = clips[CurrentSong];
                     CurrentlyPlaying = true;
                 }
                 else
@@ -183,22 +280,36 @@ namespace HPAudio
                         currentSongName = clips[CurrentSong].name;
 
                         speaker1._audioSource.clip = clips[CurrentSong];
-                        speaker2._audioSource.clip = clips[CurrentSong];
+                        spoofer.clip = clips[CurrentSong];
                         CurrentlyPlaying = true;
                     }
                     else
                     {
                         CurrentlyPlaying = false;
+                        ReturnToGameMusic();
                     }
                 }
                 //Play if everything went fine
                 if (CurrentlyPlaying)
                 {
-                    Stop();
+                    speaker2.StopMusic();
                     speaker1._audioSource.Play();
-                    speaker2._audioSource.Play();
+                    if (ValueStore.GetPlayerValues().GetInt("Music2On") == 1)
+                        spoofer.Play();
 
-                    MelonLogger.Msg("Now playing: " + CurrentSong + " - " + clips[CurrentSong].name);
+                    if (paused)
+                    {
+                        speaker1._audioSource.time = pausedTime;
+                        if (ValueStore.GetPlayerValues().GetInt("Music2On") == 1)
+                            spoofer.time = pausedTime;
+                        MelonLogger.Msg("Resuming playback");
+                    }
+                    else
+                    {
+                        MelonLogger.Msg("Now playing: " + CurrentSong + " - " + clips[CurrentSong].name);
+                    }
+                    paused = false;
+                    stopped = false;
                 }
             }
             else
@@ -271,10 +382,13 @@ namespace HPAudio
             if (gotSpeakers)
             {
                 CurrentlyPlaying = false;
+                stopped = true;
+                spoofer.Stop();
                 speaker1.PlayOriginalTrack();
-                speaker2.PlayOriginalTrack();
                 speaker1.StartMusic();
+                speaker2.PlayOriginalTrack();
                 speaker2.StartMusic();
+                MelonLogger.Msg($"Playing game music");
             }
         }
 
@@ -297,12 +411,10 @@ namespace HPAudio
             if (gotSpeakers)
             {
                 MelonLogger.Msg($"Stopped playback");
-                CurrentlyPlaying = false;
                 speaker1.StopMusic();
                 speaker2.StopMusic();
-                //speaker2.StopAllCoroutines();
-                //speaker1.StopAllCoroutines();
-                //MusicManager.Singleton.StopAllCoroutines();//singleton is null
+                spoofer.Stop();
+                stopped = true;
             }
         }
 
@@ -324,13 +436,32 @@ namespace HPAudio
                 if (speaker2 is null)
                     return;
 
-                speaker1._audioSource = speaker1._audioSource;
+                //audiosource to spoof stuff
+                spoofer = speaker2.gameObject.AddComponent<AudioSource>();
+                SyncSpoofer();
+                spoofer.outputAudioMixerGroup = speaker2._audioSource.outputAudioMixerGroup;
+                spoofer.ignoreListenerPause = speaker2._audioSource.ignoreListenerPause;
+                spoofer.ignoreListenerVolume = speaker2._audioSource.ignoreListenerVolume;
+                spoofer.spatialBlend = speaker2._audioSource.spatialBlend;
+                spoofer.minDistance = speaker2._audioSource.minDistance;
+                spoofer.maxDistance = speaker2._audioSource.maxDistance;
+                spoofer.bypassEffects = speaker2._audioSource.bypassEffects;
+                spoofer.bypassListenerEffects = speaker2._audioSource.bypassListenerEffects;
+                spoofer.bypassReverbZones = speaker2._audioSource.bypassReverbZones;
+                spoofer.playOnAwake = false;
             }
             if (!gotSpeakers && speaker1 != null && speaker2 != null)
             {
                 gotSpeakers = true;
                 MelonLogger.Msg("Got game's speakers");
             }
+        }
+
+        private void SyncSpoofer()
+        {
+            spoofer.volume = speaker2._audioSource.volume;
+            spoofer.priority = speaker2._audioSource.priority;
+            spoofer.enabled = speaker2._audioSource.enabled;
         }
 
         private void Initialize()
