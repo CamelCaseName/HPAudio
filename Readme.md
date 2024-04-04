@@ -32,3 +32,5 @@ if you encounter issues please report them to me.
 To stop custom music you can either use the button in the UI or select anything on the TV.
 
 Rachael does not yet understand the custom music so she will complain until you docked the mp3 player.
+
+You can change the mods behaviour for reloads in the settings under `\House Party\UserData\MelonPreferences.cfg`

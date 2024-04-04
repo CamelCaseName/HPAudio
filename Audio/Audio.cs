@@ -1,5 +1,6 @@
 ﻿using Il2CppEekCharacterEngine;
 using Il2CppEekCharacterEngine.Interaction;
+using Il2CppEekCharacterEngine.Interface;
 using Il2CppEekEvents.Values;
 using Il2CppHouseParty;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
@@ -7,6 +8,7 @@ using MelonLoader;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Networking;
@@ -49,6 +51,8 @@ namespace HPAudio
         private int Music2On = 0;
         private MelonPreferences_Category settings = default!;
         private MelonPreferences_Entry<bool> makeClipsOnStart = default!;
+        private MelonPreferences_Entry<bool> autorestartPlaying = default!;
+        private MelonPreferences_Entry<bool> reloadSongsOnRestart = default!;
         private Rect UIRect = new(10, Screen.height * 0.2f, Screen.width * 0.2f, Screen.height * 0.2f);
         private Speaker speaker1 = default!, speaker2 = default!;
         private string currentSongName = "None";
@@ -56,6 +60,8 @@ namespace HPAudio
         public bool CurrentlyPlaying = false;
         public bool paused = false;
         public bool stopped = false;
+        private bool fadedIn = false;
+        private int reloadCount = 0;
 
         /// <summary>
         /// Loads and plays the next song from the list
@@ -72,6 +78,8 @@ namespace HPAudio
         {
             settings = MelonPreferences.CreateCategory("AudioMod");
             makeClipsOnStart = settings.CreateEntry("MakeAllClipsOnStart", false);
+            autorestartPlaying = settings.CreateEntry("AutoRestartAfterGameLoad", true);
+            reloadSongsOnRestart = settings.CreateEntry("ReloadSongsOnRestart", false);
 
             folderPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Eek", "House Party", "Mods", "Songs");
             if (!Directory.Exists(folderPath))
@@ -124,14 +132,54 @@ namespace HPAudio
             //so far only teste for OS
             //todo test for other stories
             inGameMain = sceneName == "GameMain" && GameManager.GetActiveStoryName() == "Original Story";
+            //MelonLogger.Msg("laoded " + sceneName);
             if (inGameMain)
+            {
+                ResetAudioMod();
                 Initialize();
+            }
+            else
+            {
+                ShowUI = false;
+            }
+        }
+
+        private void ResetAudioMod()
+        {
+            spoofer = null!;
+            speaker1 = null!;
+            speaker2 = null!;
+            gotSpeakers = false;
+            CurrentlyPlaying = false;
+            fadedIn = false;
+            ShowUI = false;
+            shuffling = false;
+            pausedTime = 0;
+            AllMusicOff = 0;
+            Music1Off = 0;
+            Music2On = 0;
+            paused = false;
+            stopped = false;
         }
 
         public override void OnUpdate()
         {
             if (inGameMain)
             {
+                if (autorestartPlaying.Value)
+                {
+                    if (!fadedIn && !ScreenFade.Singleton.IsFadeVisible)
+                    {
+                        ToggleUI();
+
+                        if (ShowUI && !gotSpeakers)
+                        {
+                            Initialize();
+                        }
+                        fadedIn = true;
+                    }
+                }
+
                 if (Keyboard.current[Key.A].wasPressedThisFrame && Keyboard.current[Key.LeftAlt].isPressed)
                 {
                     ToggleUI();
@@ -265,7 +313,7 @@ namespace HPAudio
             //MelonLogger.Msg("Trying to play " + CurrentSong + " - " + currentSongName);
             if (gotSpeakers)
             {
-                if (clips.ContainsKey(CurrentSong))
+                if (clips.ContainsKey(CurrentSong) && clips[CurrentSong] != null)
                 {
                     speaker1._audioSource.clip = clips[CurrentSong];
                     spoofer.clip = clips[CurrentSong];
@@ -275,7 +323,7 @@ namespace HPAudio
                 {
                     if (MakeClip(CurrentSong, out var audio))
                     {
-                        clips.Add(CurrentSong, audio!);
+                        clips[CurrentSong] = audio!;
                         //update name as it hasnt been done yet
                         currentSongName = clips[CurrentSong].name;
 
@@ -289,6 +337,7 @@ namespace HPAudio
                         ReturnToGameMusic();
                     }
                 }
+
                 //Play if everything went fine
                 if (CurrentlyPlaying)
                 {
@@ -306,7 +355,8 @@ namespace HPAudio
                     }
                     else
                     {
-                        MelonLogger.Msg("Now playing: " + CurrentSong + " - " + clips[CurrentSong].name);
+                        if (clips[CurrentSong] != null)
+                            MelonLogger.Msg("Now playing: " + CurrentSong + " - " + clips[CurrentSong].name);
                     }
                     paused = false;
                     stopped = false;
@@ -346,7 +396,7 @@ namespace HPAudio
                         if (MakeClip(i, out var audio))
                         {
                             songs.Add(_songs[i]);
-                            clips.Add(i, audio!);
+                            clips[i] = audio!;
                         }
                     }
                 }
@@ -485,7 +535,11 @@ namespace HPAudio
                         MelonLogger.Msg("Songs will be loaded when they are needed");
                     }
 
-                    if (clips.Count == 0) ReloadSongList();
+                    if (reloadSongsOnRestart.Value || reloadCount == 0)
+                    {
+                        ReloadSongList();
+                        reloadCount++;
+                    }
 
                     Play();
 
