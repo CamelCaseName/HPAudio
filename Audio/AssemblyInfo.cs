@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
 [assembly: AssemblyProduct("HPAudio")]
-[assembly: AssemblyCopyright("Copyright ©  2022")]
+[assembly: AssemblyCopyright("Copyright ©  2025")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -34,7 +34,7 @@ using System.Runtime.InteropServices;
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
-[assembly: MelonInfo(typeof(Audio.Audio), nameof(Audio.Audio), "1.2.1", "Lenny")]
+[assembly: MelonInfo(typeof(Audio.Audio), nameof(Audio.Audio), "1.3.0", "Lenny")]
 [assembly: MelonGame("Eek", "House Party")]
 [assembly: MelonColor(255, 255, 0, 0)]
 

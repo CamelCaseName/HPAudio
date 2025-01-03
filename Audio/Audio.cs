@@ -1,23 +1,26 @@
-﻿using Il2CppEekCharacterEngine;
+﻿using HPUI;
+using Il2CppEekCharacterEngine;
 using Il2CppEekCharacterEngine.Interaction;
 using Il2CppEekCharacterEngine.Interface;
 using Il2CppEekEvents.Values;
 using Il2CppHouseParty;
-using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using MelonLoader;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Runtime.Loader;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Networking;
+using UnityEngine.UI;
 
 namespace Audio
 {
     public class Audio : MelonMod
     {
         private readonly Dictionary<int, AudioClip> clips = new();
-        private readonly Il2CppReferenceArray<GUILayoutOption> opt = new(Array.Empty<GUILayoutOption>());
         private readonly List<string> songs = new();
         private int _currentSong = 0;
         private int CurrentSong
@@ -29,6 +32,10 @@ namespace Audio
                 currentSongName = clips.ContainsKey(value) ? clips[value].name : "None";
             }
         }
+
+        public float WindowWidth { get; private set; } = 0.22f;
+        public float WindowHeight { get; private set; } = 0.09f;
+
         private AudioSource spoofer = null!;
         private bool gotSpeakers = false;
         private bool inGameMain = false;
@@ -51,20 +58,177 @@ namespace Audio
         public bool stopped = false;
         private bool fadedIn = false;
         private int reloadCount = 0;
+        private GameObject? CanvasGO;
+        private Canvas? canvas;
+        private Text? text;
+        private GameObject? shuffleButton;
+        private static Color defaultColor = new(0.1f, 0.1f, 0.1f);
+        private static Color setColor = new(0.10f, 0.25f, 0.15f);
+        private ColorBlock buttonColor = new() { normalColor = defaultColor, highlightedColor = defaultColor * 1.2f, pressedColor = defaultColor * 0.8f, colorMultiplier = 1 };
+        private ColorBlock setButtonColor = new() { normalColor = setColor, highlightedColor = setColor * 1.2f, pressedColor = setColor * 0.8f, colorMultiplier = 1 };
+
+        static Audio()
+        {
+            SetOurResolveHandlerAtFront();
+        }
+
+        public Audio()
+        {
+        }
+
+        private void BuildUI()
+        {
+            // Canvas
+            CanvasGO = new()
+            {
+                name = "Audiomod UI"
+            };
+            canvas = CanvasGO.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            CanvasScaler scaler = CanvasGO.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            _ = CanvasGO.AddComponent<GraphicRaycaster>();
+
+            _ = UIBuilder.CreatePanel("Audiomod UI Container", CanvasGO, new(WindowWidth, WindowHeight), new(0, Screen.height * 0.5f), out GameObject contentHolder);
+            text = UIBuilder.CreateLabel(contentHolder, "Audiomod info text", "");
+            text.fontSize = 14;
+
+            UIBuilder.SetLayoutGroup<VerticalLayoutGroup>(contentHolder);
+
+            var layout = UIBuilder.CreateUIObject("Control buttons", contentHolder);
+            //set lower min height on layout group
+            UIBuilder.SetLayoutElement(layout, minHeight: 5, flexibleHeight: 0);
+            UIBuilder.SetLayoutGroup<HorizontalLayoutGroup>(layout).spacing = 2f;
+            shuffleButton = UIBuilder.CreateButton(layout, "shuffle", "Shuffle", buttonColor);
+            UIBuilder.SetLayoutElement(shuffleButton, minHeight: 8, minWidth: P(3), flexibleHeight: 0, flexibleWidth: 0);
+            shuffleButton.GetComponent<Button>().colors = buttonColor;
+            shuffleButton.GetComponent<Button>().onClick.AddListener(new Action(() => Shuffle()));
+            var previousButton = UIBuilder.CreateButton(layout, "previous", "Previous", buttonColor);
+            UIBuilder.SetLayoutElement(previousButton, minHeight: 8, minWidth: P(3), flexibleHeight: 0, flexibleWidth: 0);
+            previousButton.GetComponent<Button>().colors = buttonColor;
+            previousButton.GetComponent<Button>().onClick.AddListener(new Action(() => Previous()));
+            var playButton = UIBuilder.CreateButton(layout, "play", "Play", buttonColor);
+            UIBuilder.SetLayoutElement(playButton, minHeight: 8, minWidth: P(3), flexibleHeight: 0, flexibleWidth: 0);
+            playButton.GetComponent<Button>().colors = buttonColor;
+            playButton.GetComponent<Button>().onClick.AddListener(new Action(() => Play()));
+            var pauseButton = UIBuilder.CreateButton(layout, "pause", "Pause", buttonColor);
+            UIBuilder.SetLayoutElement(pauseButton, minHeight: 8, minWidth: P(3), flexibleHeight: 0, flexibleWidth: 0);
+            pauseButton.GetComponent<Button>().colors = buttonColor;
+            pauseButton.GetComponent<Button>().onClick.AddListener(new Action(() => Pause()));
+            var nextButton = UIBuilder.CreateButton(layout, "next", "Next", buttonColor);
+            UIBuilder.SetLayoutElement(nextButton, minHeight: 8, minWidth: P(3), flexibleHeight: 0, flexibleWidth: 0);
+            nextButton.GetComponent<Button>().colors = buttonColor;
+            nextButton.GetComponent<Button>().onClick.AddListener(new Action(() => Next()));
+            var stopButton = UIBuilder.CreateButton(layout, "stop", "Stop", buttonColor);
+            UIBuilder.SetLayoutElement(stopButton, minHeight: 8, minWidth: P(3), flexibleHeight: 0, flexibleWidth: 0);
+            stopButton.GetComponent<Button>().colors = buttonColor;
+            stopButton.GetComponent<Button>().onClick.AddListener(new Action(() => Stop()));
+            var returnToGameButton = UIBuilder.CreateButton(contentHolder, "returnToGame", "Return to Game Songs", buttonColor);
+            UIBuilder.SetLayoutElement(returnToGameButton, minHeight: 8, minWidth: P(15), flexibleHeight: 0, flexibleWidth: 0);
+            returnToGameButton.GetComponent<Button>().colors = buttonColor;
+            returnToGameButton.GetComponent<Button>().onClick.AddListener(new Action(() => ReturnToGameMusic()));
+
+            MelonLogger.Msg("created UI");
+            //MelonLogger.Msg(shuffleButton.GetComponent<Button>().colors.normalColor.ToString());
+        }
+
+        private static int P(int percentage)
+        {
+            Math.Clamp(percentage, 0, 100);
+            var f = (percentage / 100);
+            return Screen.width * f;
+        }
+
+        private static Assembly AssemblyResolveEventListener(object sender, ResolveEventArgs args)
+        {
+            if (args is null)
+            {
+                return null!;
+            }
+            string name = "Audio.Resources." + args.Name[..args.Name.IndexOf(',')] + ".dll";
+
+            using Stream? str = Assembly.GetExecutingAssembly().GetManifestResourceStream(name);
+            if (str is not null)
+            {
+                var context = new AssemblyLoadContext(name, false);
+                string path = Path.Combine(Directory.GetParent(Assembly.GetExecutingAssembly()?.Location!)!.Parent!.FullName, "UserLibs", args.Name[..args.Name.IndexOf(',')] + ".dll");
+                FileStream fstr = new(path, FileMode.Create);
+                str.CopyTo(fstr);
+                fstr.Close();
+                str.Position = 0;
+
+                var asm = context.LoadFromStream(str);
+                MelonLogger.Warning($"Loaded {asm.FullName} from our embedded resources, saving to userlibs for next time");
+
+                return asm;
+            }
+            return null!;
+        }
+
+        private static void SetOurResolveHandlerAtFront()
+        {
+            //MelonLogger.Msg("setting our resolvehandler");
+            BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+            FieldInfo? field = null;
+
+            Type domainType = typeof(AssemblyLoadContext);
+
+            while (field is null)
+            {
+                if (domainType is not null)
+                {
+                    field = domainType.GetField("AssemblyResolve", flags);
+                }
+                else
+                {
+                    //MelonDebug.Error("domainType got set to null for the AssemblyResolve event was null");
+                    return;
+                }
+                if (field is null)
+                {
+                    domainType = domainType.BaseType!;
+                }
+            }
+
+            var resolveDelegate = (MulticastDelegate)field.GetValue(null)!;
+            Delegate[] subscribers = resolveDelegate.GetInvocationList();
+
+            Delegate currentDelegate = resolveDelegate;
+            for (int i = 0; i < subscribers.Length; i++)
+            {
+                currentDelegate = System.Delegate.RemoveAll(currentDelegate, subscribers[i])!;
+            }
+
+            var newSubscriptions = new Delegate[subscribers.Length + 1];
+            newSubscriptions[0] = (ResolveEventHandler)AssemblyResolveEventListener!;
+            System.Array.Copy(subscribers, 0, newSubscriptions, 1, subscribers.Length);
+
+            currentDelegate = Delegate.Combine(newSubscriptions)!;
+
+            field.SetValue(null, currentDelegate);
+
+            //MelonLogger.Msg("set our resolvehandler");
+        }
 
         /// <summary>
         /// Loads and plays the next song from the list
         /// </summary>
         public void Next()
         {
-            shuffling = false;
-            if (CurrentSong + 1 >= songs.Count)
+            if (shuffling)
             {
-                CurrentSong = 0;
+                CurrentSong = UnityEngine.Random.RandomRangeInt(0, songs.Count - 1);
             }
             else
             {
-                CurrentSong++;
+                if (CurrentSong + 1 >= songs.Count)
+                {
+                    CurrentSong = 0;
+                }
+                else
+                {
+                    CurrentSong++;
+                }
             }
 
             Play();
@@ -72,7 +236,7 @@ namespace Audio
 
         public override void OnInitializeMelon()
         {
-            settings = MelonPreferences.CreateCategory("AudioMod");
+            settings = MelonPreferences.CreateCategory("Audio");
             makeClipsOnStart = settings.CreateEntry("MakeAllClipsOnStart", false);
             autorestartPlaying = settings.CreateEntry("AutoRestartAfterGameLoad", true);
             reloadSongsOnRestart = settings.CreateEntry("ReloadSongsOnRestart", false);
@@ -97,76 +261,69 @@ namespace Audio
 
         public override void OnGUI()
         {
-            //todo redo ui at some point
-            if (ShowUI)
+            try
             {
-                GUILayout.BeginArea(UIRect);
-                GUILayout.BeginVertical(opt);
-                GUILayout.Label(currentSongName, opt);
-                GUILayout.BeginHorizontal(opt);
-                if (GUILayout.Button("Prev", opt))
+                if (CanvasGO is null || text is null || canvas is null || shuffleButton is null)
                 {
-                    Previous();
+                    return;
+                }
+                if (!inGameMain)
+                {
+                    return;
                 }
 
-                if (GUILayout.Button("Shuffle", opt))
+                CanvasGO.SetActive(ShowUI);
+                if (!ShowUI)
                 {
-                    Shuffle();
+                    return;
                 }
 
-                if (!paused && !stopped)
+                canvas.scaleFactor = 1.0f;
+                if (paused)
                 {
-                    if (GUILayout.Button("Pause", opt))
-                    {
-                        Pause();
-                    }
+                    text.text = "Paused: " + currentSongName;
                 }
                 else
                 {
-                    if (GUILayout.Button("Play", opt))
+                    text.text = "Now playing: " + currentSongName;
+                    if (shuffling)
                     {
-                        Play();
+                        shuffleButton.GetComponent<Button>().colors = setButtonColor;
+                    }
+                    else
+                    {
+                        shuffleButton.GetComponent<Button>().colors = buttonColor;
                     }
                 }
-                if (GUILayout.Button("Next", opt))
-                {
-                    Next();
-                }
-
-                if (GUILayout.Button("Stop", opt))
-                {
-                    Stop();
-                }
-
-                GUILayout.EndHorizontal();
-                if (GUILayout.Button("Stop playback and resume eek songs", opt))
-                {
-                    ReturnToGameMusic();
-                }
-
-                GUILayout.EndVertical();
-                GUILayout.EndArea();
+            }
+            catch (SEHException e)
+            {
+                MelonLogger.Error(e.Message);
+                MelonLogger.Error(e.StackTrace);
+                MelonLogger.Error(e.ErrorCode);
             }
         }
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             //so far only teste for OS
-            //todo test for other stories
-            inGameMain = sceneName == "GameMain" && GameManager.GetActiveStoryName() == "Original Story";
+            inGameMain = sceneName == "GameMain" && GameManager.GetActiveStoryName() != string.Empty;
             //MelonLogger.Msg("laoded " + sceneName);
             if (inGameMain)
             {
-                ResetAudioMod();
+                ResetAudio();
                 Initialize();
+
+                BuildUI();
             }
             else
             {
                 ShowUI = false;
+                CanvasGO = null!;
             }
         }
 
-        private void ResetAudioMod()
+        private void ResetAudio()
         {
             spoofer = null!;
             speaker1 = null!;
@@ -202,7 +359,7 @@ namespace Audio
                     }
                 }
 
-                if (Keyboard.current[Key.A].wasPressedThisFrame && Keyboard.current[Key.LeftAlt].isPressed)
+                if (Keyboard.current[Key.Digit3].wasPressedThisFrame && Keyboard.current[Key.LeftAlt].isPressed)
                 {
                     ToggleUI();
 
@@ -285,7 +442,7 @@ namespace Audio
                         Stop();
                     }
 
-                    if ((speaker1._audioSource.clip.length - speaker1._audioSource.time) / speaker1._audioSource.pitch < 0.2f)
+                    if (GetRemainingSongTime() < 0.2f)
                     {
                         if (shuffling)
                         {
@@ -320,6 +477,11 @@ namespace Audio
             }
         }
 
+        private float GetRemainingSongTime()
+        {
+            return (speaker1._audioSource.clip.length - speaker1._audioSource.time) / speaker1._audioSource.pitch;
+        }
+
         /// <summary>
         /// Pauses song but keeps current time
         /// </summary>
@@ -340,7 +502,11 @@ namespace Audio
         public void Play()
         {
             //MelonLogger.Msg("Trying to play " + CurrentSong + " - " + currentSongName);
-            if (gotSpeakers)
+            if (!gotSpeakers)
+            {
+                GetSpeakers();
+            }
+            else
             {
                 if (clips.ContainsKey(CurrentSong) && clips[CurrentSong] != null)
                 {
@@ -398,10 +564,6 @@ namespace Audio
                     stopped = false;
                 }
             }
-            else
-            {
-                GetSpeakers();
-            }
         }
 
         /// <summary>
@@ -409,16 +571,21 @@ namespace Audio
         /// </summary>
         public void Previous()
         {
-            shuffling = false;
-            if (CurrentSong - 1 < 0)
+            if (shuffling)
             {
-                CurrentSong = songs.Count - 1;
+                CurrentSong = UnityEngine.Random.RandomRangeInt(0, songs.Count - 1);
             }
             else
             {
-                CurrentSong--;
+                if (CurrentSong - 1 < 0)
+                {
+                    CurrentSong = songs.Count - 1;
+                }
+                else
+                {
+                    CurrentSong--;
+                }
             }
-
             Play();
         }
 
@@ -490,10 +657,13 @@ namespace Audio
         /// </summary>
         public void Shuffle()
         {
-            CurrentSong = UnityEngine.Random.RandomRangeInt(0, songs.Count - 1);
-            shuffling = true;
-            MelonLogger.Msg($"Shuffle enabled");
-            Play();
+            shuffling = !shuffling;
+            if (shuffling)
+            {
+                CurrentSong = UnityEngine.Random.RandomRangeInt(0, songs.Count - 1);
+
+                Play();
+            }
         }
 
         /// <summary>

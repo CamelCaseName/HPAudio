@@ -21,9 +21,11 @@ Make sure you have installed the game and at least started the game once before 
 
 | keys                   | action                                 |
 |------------------------|----------------------------------------|
-| ALT + A                | toggles the UI for the song selection. |
+| ALT + 3                | toggles the UI for the song selection. |
 
 ## Using the mod
+
+To interacti with the UI, pull up any menu in game. Inventory works very well.
 
 It only works in the Original Story so far!
 I tried my bet to integrate it into the games Audiosystem, but its not all perfect. 
